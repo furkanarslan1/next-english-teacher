@@ -44,7 +44,7 @@ Bir İngilizce öğretmeni için hazırlanan, öğrencilerin kayıt olup bilgi k
 ### 🔄 Şu An: Admin Paneli
 
 #### 1. Kategori Yönetimi
-- [ ] Supabase'de `levels` ve `categories` tabloları
+- [x] Supabase'de `levels`, `categories`, `cards`, `quizzes`, `questions`, `profiles` tabloları (`supabase/full_schema.sql`)
 - [ ] Admin: Seviye (A1, B2…) oluştur / düzenle / sil
 - [ ] Admin: Alt kategori oluştur / düzenle / sil
 
