@@ -27,6 +27,8 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // /admin altı: giriş yapılmamışsa login'e, admin değilse dashboard'a
   if (request.nextUrl.pathname.startsWith("/admin")) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
@@ -39,7 +41,14 @@ export async function proxy(request: NextRequest) {
       .single();
 
     if (!admin) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+
+  // /dashboard altı: giriş yapılmamışsa login'e
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
