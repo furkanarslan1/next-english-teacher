@@ -60,10 +60,41 @@ Bir İngilizce öğretmeni için hazırlanan, öğrencilerin kayıt olup bilgi k
 - [ ] Sağa/sola kaydırma ile kart geçişi
 
 ### 📋 Sıradaki: Test Modülü
-- [ ] Supabase'de `quizzes` ve `questions` tabloları
-- [ ] Doğru/Yanlış soru tipi
-- [ ] Çoktan seçmeli soru tipi
-- [ ] Soru başına süre sayacı
+
+#### Test Mantığı — 3 Katman
+
+**Katman 1: Otomatik Seviye Testi (sıralı + kilitli)**
+- Hiç manuel soru girişi gerekmez; sorular `word_cards` tablosundan çalışma zamanında üretilir
+- Kelimeler `sort_order`'a göre sıralanır, 10'arlık gruplara (batch) bölünür
+- Batch 1 tamamlanınca Batch 2 açılır (kilitli ilerleme)
+- Soru formatı: kelime gösterilir → 4 şık (3 yanlış aynı seviyeden rastgele, 1 doğru)
+- Yön: EN→TR veya TR→EN, her testte karıştırılmış
+- İlerleme `level_quiz_progress` tablosunda tutulur
+
+**Katman 2: Sonsuz Pratik Modu**
+- Öğrenci seviye seçer, rastgele 10 kelime gelir
+- Skor veya kilit yok — saf pratik
+- İstediği kadar tekrarlanabilir
+
+**Katman 3: Admin Özel Testleri (opsiyonel)**
+- Öğretmen tematik testler oluşturabilir ("Düzensiz Fiiller", "B2 Deyimler" vb.)
+- Manuel soru girişi: Doğru/Yanlış, Çoktan Seçmeli (kelime bazlı veya serbest)
+- Birden fazla seviye ve kategoriye bağlanabilir (junction table)
+- Admin panelinde `/admin/quizzes` → `/admin/quizzes/[id]`
+
+#### Gerekli Tablolar
+- `quizzes` — admin özel testleri
+- `quiz_levels` — quiz ↔ level (çoka-çok)
+- `quiz_categories` — quiz ↔ category (çoka-çok)
+- `questions` — soru metni, şıklar (jsonb), word_card_id (opsiyonel), yön
+- `level_quiz_progress` — öğrencinin Katman 1 ilerlemesi (student_id, level_id, batch, score)
+
+#### Görevler
+- [ ] `level_quiz_progress` tablosunu Supabase'de oluştur
+- [ ] Katman 1: öğrenci tarafı — seviye seç → batch listesi → test çöz → sonuç
+- [ ] Katman 2: öğrenci tarafı — seviye seç → rastgele 10 kelime → pratik
+- [ ] Katman 3: öğrenci tarafı — admin testlerini listele → test çöz
+- [ ] Soru başına süre sayacı (time_per_question saniye)
 - [ ] Doğru cevap = puan *(puan sistemi detayları sonra)*
 
 ### 📋 Sonraki: Kullanıcı Sistemi

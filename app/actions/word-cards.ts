@@ -49,6 +49,7 @@ export async function createWordCardAction(
   const { error } = await supabase.from("word_cards").insert({
     word: parsed.data.word,
     level_id: parsed.data.level_id,
+    category_id: parsed.data.category_id || null,
     translation: parsed.data.translation || null,
     example_sentence: parsed.data.example_sentence || null,
     description: parsed.data.description || null,
@@ -77,6 +78,7 @@ export async function updateWordCardAction(
     .update({
       word: parsed.data.word,
       level_id: parsed.data.level_id,
+      category_id: parsed.data.category_id || null,
       translation: parsed.data.translation || null,
       example_sentence: parsed.data.example_sentence || null,
       description: parsed.data.description || null,

@@ -53,6 +53,7 @@ import {
 } from "@/app/actions/word-cards";
 
 type Level = { id: string; label: string };
+type Category = { id: string; label: string; level_id: string };
 
 type WordCard = {
   id: string;
@@ -63,12 +64,15 @@ type WordCard = {
   sort_order: number;
   is_active: boolean;
   level_id: string;
+  category_id: string | null;
   levels: { label: string }[] | { label: string } | null;
+  categories: { label: string }[] | { label: string } | null;
 };
 
 type FormState = {
   word: string;
   level_id: string;
+  category_id: string;
   translation: string;
   example_sentence: string;
   description: string;
@@ -104,6 +108,7 @@ function buildPageList(current: number, total: number): (number | "…")[] {
 const defaultForm: FormState = {
   word: "",
   level_id: "",
+  category_id: "",
   translation: "",
   example_sentence: "",
   description: "",
@@ -114,6 +119,7 @@ const defaultForm: FormState = {
 export function WordCardsClient({
   cards,
   levels,
+  categories,
   currentLevelId,
   currentPage,
   totalPages,
@@ -121,6 +127,7 @@ export function WordCardsClient({
 }: {
   cards: WordCard[];
   levels: Level[];
+  categories: Category[];
   currentLevelId: string;
   currentPage: number;
   totalPages: number;
@@ -153,6 +160,7 @@ export function WordCardsClient({
     setForm({
       word: card.word,
       level_id: card.level_id,
+      category_id: card.category_id ?? "",
       translation: card.translation ?? "",
       example_sentence: card.example_sentence ?? "",
       description: card.description ?? "",
@@ -162,6 +170,10 @@ export function WordCardsClient({
     setFormError(null);
     setDialogOpen(true);
   }
+
+  const formCategories = categories.filter(
+    (c) => c.level_id === form.level_id,
+  );
 
   function handleSubmit() {
     setFormError(null);
@@ -383,7 +395,9 @@ export function WordCardsClient({
               </Label>
               <Select
                 value={form.level_id}
-                onValueChange={(val) => setForm({ ...form, level_id: val })}
+                onValueChange={(val) =>
+                  setForm({ ...form, level_id: val, category_id: "" })
+                }
               >
                 <SelectTrigger id="level_id">
                   <SelectValue placeholder="Seviye seçin" />
@@ -397,6 +411,38 @@ export function WordCardsClient({
                 </SelectContent>
               </Select>
             </div>
+
+            {formCategories.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="category_id">
+                  Kategori{" "}
+                  <span className="text-muted-foreground text-xs">
+                    (opsiyonel)
+                  </span>
+                </Label>
+                <Select
+                  value={form.category_id || "none"}
+                  onValueChange={(val) =>
+                    setForm({
+                      ...form,
+                      category_id: val === "none" ? "" : val,
+                    })
+                  }
+                >
+                  <SelectTrigger id="category_id">
+                    <SelectValue placeholder="Kategori seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Seçme</SelectItem>
+                    {formCategories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="translation">Türkçe Çeviri</Label>

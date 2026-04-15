@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS cards (
 CREATE TABLE IF NOT EXISTS word_cards (
   id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   level_id         uuid        NOT NULL REFERENCES levels(id) ON DELETE CASCADE,
+  category_id      uuid        REFERENCES categories(id) ON DELETE SET NULL, -- opsiyonel alt kategori
   word             text        NOT NULL,          -- İngilizce kelime (zorunlu)
   translation      text,                          -- Türkçe karşılık (opsiyonel)
   example_sentence text,                          -- Örnek cümle (opsiyonel)
@@ -113,16 +114,28 @@ CREATE TABLE IF NOT EXISTS word_cards (
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS quizzes (
-  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id  uuid        REFERENCES categories(id) ON DELETE SET NULL,
-  level_id     uuid        REFERENCES levels(id) ON DELETE SET NULL,
-  title        text        NOT NULL,
-  description  text,
-  time_per_question integer NOT NULL DEFAULT 30,  -- saniye cinsinden
-  is_active    boolean     NOT NULL DEFAULT true,
-  sort_order   integer     NOT NULL DEFAULT 0,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now()
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  title             text        NOT NULL,
+  description       text,
+  time_per_question integer     NOT NULL DEFAULT 30,  -- saniye cinsinden
+  is_active         boolean     NOT NULL DEFAULT true,
+  sort_order        integer     NOT NULL DEFAULT 0,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- Bir quiz birden fazla seviyeye bağlanabilir
+CREATE TABLE IF NOT EXISTS quiz_levels (
+  quiz_id  uuid NOT NULL REFERENCES quizzes(id)  ON DELETE CASCADE,
+  level_id uuid NOT NULL REFERENCES levels(id)   ON DELETE CASCADE,
+  PRIMARY KEY (quiz_id, level_id)
+);
+
+-- Bir quiz birden fazla kategoriye bağlanabilir
+CREATE TABLE IF NOT EXISTS quiz_categories (
+  quiz_id     uuid NOT NULL REFERENCES quizzes(id)    ON DELETE CASCADE,
+  category_id uuid NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (quiz_id, category_id)
 );
 
 
@@ -270,9 +283,13 @@ CREATE INDEX IF NOT EXISTS idx_word_cards_is_active  ON word_cards(is_active);
 CREATE INDEX IF NOT EXISTS idx_word_cards_level_sort ON word_cards(level_id, sort_order);
 
 -- Quizzes
-CREATE INDEX IF NOT EXISTS idx_quizzes_category_id ON quizzes(category_id);
-CREATE INDEX IF NOT EXISTS idx_quizzes_level_id    ON quizzes(level_id);
-CREATE INDEX IF NOT EXISTS idx_quizzes_is_active   ON quizzes(is_active);
+CREATE INDEX IF NOT EXISTS idx_quizzes_is_active       ON quizzes(is_active);
+
+-- Quiz junction tables
+CREATE INDEX IF NOT EXISTS idx_quiz_levels_quiz_id      ON quiz_levels(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_levels_level_id     ON quiz_levels(level_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_categories_quiz_id  ON quiz_categories(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_categories_cat_id   ON quiz_categories(category_id);
 
 -- Questions
 CREATE INDEX IF NOT EXISTS idx_questions_quiz_id    ON questions(quiz_id);
@@ -289,8 +306,10 @@ ALTER TABLE levels      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cards       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE word_cards  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quizzes     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE questions   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quizzes          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_levels      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quiz_categories  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE questions        ENABLE ROW LEVEL SECURITY;
 
 -- ADMIN USERS
 CREATE POLICY "admin_users_self_read"
@@ -371,6 +390,30 @@ CREATE POLICY "quizzes_admin_write"
   USING    (auth.uid() IN (SELECT id FROM admin_users))
   WITH CHECK (auth.uid() IN (SELECT id FROM admin_users));
 
+-- QUIZ_LEVELS — herkese açık okuma, sadece admin yazar
+CREATE POLICY "quiz_levels_public_read"
+  ON public.quiz_levels FOR SELECT
+  TO public
+  USING (true);
+
+CREATE POLICY "quiz_levels_admin_write"
+  ON public.quiz_levels FOR ALL
+  TO authenticated
+  USING    (auth.uid() IN (SELECT id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT id FROM admin_users));
+
+-- QUIZ_CATEGORIES — herkese açık okuma, sadece admin yazar
+CREATE POLICY "quiz_categories_public_read"
+  ON public.quiz_categories FOR SELECT
+  TO public
+  USING (true);
+
+CREATE POLICY "quiz_categories_admin_write"
+  ON public.quiz_categories FOR ALL
+  TO authenticated
+  USING    (auth.uid() IN (SELECT id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT id FROM admin_users));
+
 -- QUESTIONS — herkese açık okuma, sadece admin yazar
 CREATE POLICY "questions_public_read"
   ON public.questions FOR SELECT
@@ -385,7 +428,40 @@ CREATE POLICY "questions_admin_write"
 
 
 -- =============================================
--- 13. ADMIN KULLANICI KURULUMU (3 adım)
+-- 13. LEVEL QUIZ PROGRESS (Otomatik test ilerlemesi)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS level_quiz_progress (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id   uuid        NOT NULL REFERENCES profiles(id)  ON DELETE CASCADE,
+  level_id     uuid        NOT NULL REFERENCES levels(id)    ON DELETE CASCADE,
+  batch        integer     NOT NULL,   -- kaçıncı batch (1'den başlar)
+  score        integer     NOT NULL,   -- doğru sayısı
+  total        integer     NOT NULL,   -- toplam soru sayısı
+  completed_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (student_id, level_id, batch)
+);
+
+ALTER TABLE level_quiz_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "progress_student_read"
+  ON public.level_quiz_progress FOR SELECT
+  TO authenticated
+  USING (auth.uid() = student_id);
+
+CREATE POLICY "progress_student_write"
+  ON public.level_quiz_progress FOR ALL
+  TO authenticated
+  USING    (auth.uid() = student_id)
+  WITH CHECK (auth.uid() = student_id);
+
+CREATE INDEX IF NOT EXISTS idx_level_quiz_progress_student       ON level_quiz_progress(student_id);
+CREATE INDEX IF NOT EXISTS idx_level_quiz_progress_level         ON level_quiz_progress(level_id);
+CREATE INDEX IF NOT EXISTS idx_level_quiz_progress_student_level ON level_quiz_progress(student_id, level_id);
+
+
+-- =============================================
+-- 14. ADMIN KULLANICI KURULUMU (3 adım)
 -- =============================================
 
 -- ADIM 1: Email adresini gir.

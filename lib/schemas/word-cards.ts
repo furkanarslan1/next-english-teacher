@@ -6,6 +6,7 @@ export const wordCardSchema = z.object({
     .min(1, "Kelime zorunludur")
     .max(200, "Kelime en fazla 200 karakter olabilir"),
   level_id: z.string().uuid("Geçerli bir seviye seçin"),
+  category_id: z.string().uuid().optional().or(z.literal("")),
   translation: z.string().max(200).optional().or(z.literal("")),
   example_sentence: z.string().max(500).optional().or(z.literal("")),
   description: z.string().max(500).optional().or(z.literal("")),

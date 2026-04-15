@@ -12,10 +12,13 @@ export default async function AdminWordCardsPage({
 
   const supabase = await createClient();
 
-  const { data: levels } = await supabase
-    .from("levels")
-    .select("id, label")
-    .order("sort_order");
+  const [{ data: levels }, { data: categories }] = await Promise.all([
+    supabase.from("levels").select("id, label").order("sort_order"),
+    supabase
+      .from("categories")
+      .select("id, label, level_id")
+      .order("sort_order"),
+  ]);
 
   const currentLevelId = levelParam ?? levels?.[0]?.id ?? "";
   const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10));
@@ -25,7 +28,7 @@ export default async function AdminWordCardsPage({
   const { data: cards, count } = await supabase
     .from("word_cards")
     .select(
-      "id, word, translation, example_sentence, description, sort_order, is_active, level_id, levels(label)",
+      "id, word, translation, example_sentence, description, sort_order, is_active, level_id, category_id, levels(label), categories(label)",
       { count: "exact" },
     )
     .eq("level_id", currentLevelId)
@@ -38,6 +41,7 @@ export default async function AdminWordCardsPage({
     <WordCardsClient
       cards={cards ?? []}
       levels={levels ?? []}
+      categories={categories ?? []}
       currentLevelId={currentLevelId}
       currentPage={currentPage}
       totalPages={totalPages}

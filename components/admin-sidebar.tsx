@@ -49,6 +49,7 @@ const navItems = [
     url: "/admin/quizzes",
     icon: ClipboardListIcon,
   },
+
 ];
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
