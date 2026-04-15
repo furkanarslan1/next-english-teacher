@@ -245,18 +245,20 @@ export function CategoriesClient({
               </Select>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="sort_order">Sıra</Label>
-              <Input
-                id="sort_order"
-                type="number"
-                min={0}
-                value={form.sort_order}
-                onChange={(e) =>
-                  setForm({ ...form, sort_order: Number(e.target.value) })
-                }
-              />
-            </div>
+            {editTarget && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="sort_order">Sıra</Label>
+                <Input
+                  id="sort_order"
+                  type="number"
+                  min={0}
+                  value={form.sort_order}
+                  onChange={(e) =>
+                    setForm({ ...form, sort_order: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="is_active">Durum</Label>

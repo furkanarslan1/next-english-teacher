@@ -90,7 +90,26 @@ CREATE TABLE IF NOT EXISTS cards (
 
 
 -- =============================================
--- 6. QUIZZES (Testler)
+-- 6. WORD CARDS (Kelime Kartları — seviye bazlı)
+-- =============================================
+-- Doğrudan level'e bağlı, kategori gerektirmeyen kelime kartları.
+
+CREATE TABLE IF NOT EXISTS word_cards (
+  id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  level_id         uuid        NOT NULL REFERENCES levels(id) ON DELETE CASCADE,
+  word             text        NOT NULL,          -- İngilizce kelime (zorunlu)
+  translation      text,                          -- Türkçe karşılık (opsiyonel)
+  example_sentence text,                          -- Örnek cümle (opsiyonel)
+  description      text,                          -- Tanım / açıklama (opsiyonel)
+  sort_order       integer     NOT NULL DEFAULT 0,
+  is_active        boolean     NOT NULL DEFAULT true,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+
+-- =============================================
+-- 7. QUIZZES (Testler)
 -- =============================================
 
 CREATE TABLE IF NOT EXISTS quizzes (
@@ -113,17 +132,20 @@ CREATE TABLE IF NOT EXISTS quizzes (
 -- type: 'true_false' | 'multiple_choice'
 
 CREATE TABLE IF NOT EXISTS questions (
-  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  quiz_id       uuid        NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-  type          text        NOT NULL DEFAULT 'multiple_choice'
-                              CHECK (type IN ('true_false', 'multiple_choice')),
-  question_text text        NOT NULL,
-  options       jsonb       NOT NULL DEFAULT '[]',
+  id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  quiz_id            uuid        NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  type               text        NOT NULL DEFAULT 'multiple_choice'
+                                   CHECK (type IN ('true_false', 'multiple_choice')),
+  question_text      text        NOT NULL,
+  options            jsonb       NOT NULL DEFAULT '[]',
   -- true_false için: [{"label":"Doğru","is_correct":true},{"label":"Yanlış","is_correct":false}]
   -- multiple_choice için: [{"label":"...","is_correct":false}, ...]
-  points        integer     NOT NULL DEFAULT 10,
-  sort_order    integer     NOT NULL DEFAULT 0,
-  created_at    timestamptz NOT NULL DEFAULT now()
+  word_card_id       uuid        REFERENCES word_cards(id) ON DELETE SET NULL,
+  -- Kelime kartından üretilen sorularda hangi yönde sorulduğu: 'en_to_tr' | 'tr_to_en'
+  question_direction text        CHECK (question_direction IN ('en_to_tr', 'tr_to_en')),
+  points             integer     NOT NULL DEFAULT 10,
+  sort_order         integer     NOT NULL DEFAULT 0,
+  created_at         timestamptz NOT NULL DEFAULT now()
 );
 
 
@@ -145,6 +167,10 @@ CREATE OR REPLACE TRIGGER profiles_updated_at
 
 CREATE OR REPLACE TRIGGER cards_updated_at
   BEFORE UPDATE ON cards
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE OR REPLACE TRIGGER word_cards_updated_at
+  BEFORE UPDATE ON word_cards
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 CREATE OR REPLACE TRIGGER quizzes_updated_at
@@ -237,6 +263,12 @@ CREATE INDEX IF NOT EXISTS idx_cards_sort_order    ON cards(sort_order);
 CREATE INDEX IF NOT EXISTS idx_cards_is_active     ON cards(is_active);
 CREATE INDEX IF NOT EXISTS idx_cards_category_sort ON cards(category_id, sort_order);
 
+-- Word Cards
+CREATE INDEX IF NOT EXISTS idx_word_cards_level_id   ON word_cards(level_id);
+CREATE INDEX IF NOT EXISTS idx_word_cards_sort_order ON word_cards(sort_order);
+CREATE INDEX IF NOT EXISTS idx_word_cards_is_active  ON word_cards(is_active);
+CREATE INDEX IF NOT EXISTS idx_word_cards_level_sort ON word_cards(level_id, sort_order);
+
 -- Quizzes
 CREATE INDEX IF NOT EXISTS idx_quizzes_category_id ON quizzes(category_id);
 CREATE INDEX IF NOT EXISTS idx_quizzes_level_id    ON quizzes(level_id);
@@ -256,6 +288,7 @@ ALTER TABLE profiles    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levels      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cards       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE word_cards  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quizzes     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE questions   ENABLE ROW LEVEL SECURITY;
 
@@ -310,6 +343,18 @@ CREATE POLICY "cards_public_read"
 
 CREATE POLICY "cards_admin_write"
   ON public.cards FOR ALL
+  TO authenticated
+  USING    (auth.uid() IN (SELECT id FROM admin_users))
+  WITH CHECK (auth.uid() IN (SELECT id FROM admin_users));
+
+-- WORD CARDS — herkese açık okuma, sadece admin yazar
+CREATE POLICY "word_cards_public_read"
+  ON public.word_cards FOR SELECT
+  TO public
+  USING (true);
+
+CREATE POLICY "word_cards_admin_write"
+  ON public.word_cards FOR ALL
   TO authenticated
   USING    (auth.uid() IN (SELECT id FROM admin_users))
   WITH CHECK (auth.uid() IN (SELECT id FROM admin_users));

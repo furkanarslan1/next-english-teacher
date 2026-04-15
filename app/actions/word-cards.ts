@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { categorySchema } from "@/lib/schemas/categories";
+import { wordCardSchema } from "@/lib/schemas/word-cards";
 
-export type CategoryActionResult = {
+export type WordCardActionResult = {
   error?: string;
 };
 
@@ -27,19 +27,17 @@ async function requireAdmin() {
   return { supabase, error: null };
 }
 
-export async function createCategoryAction(
+export async function createWordCardAction(
   values: unknown,
-): Promise<CategoryActionResult> {
-  const parsed = categorySchema.safeParse(values);
-  if (!parsed.success) {
-    return { error: "Geçersiz form verisi." };
-  }
+): Promise<WordCardActionResult> {
+  const parsed = wordCardSchema.safeParse(values);
+  if (!parsed.success) return { error: "Geçersiz form verisi." };
 
   const { supabase, error: authError } = await requireAdmin();
   if (authError || !supabase) return { error: authError! };
 
   const { data: maxRow } = await supabase
-    .from("categories")
+    .from("word_cards")
     .select("sort_order")
     .eq("level_id", parsed.data.level_id)
     .order("sort_order", { ascending: false })
@@ -48,36 +46,40 @@ export async function createCategoryAction(
 
   const nextSortOrder = (maxRow?.sort_order ?? 0) + 10;
 
-  const { error } = await supabase.from("categories").insert({
-    label: parsed.data.label,
+  const { error } = await supabase.from("word_cards").insert({
+    word: parsed.data.word,
     level_id: parsed.data.level_id,
+    translation: parsed.data.translation || null,
+    example_sentence: parsed.data.example_sentence || null,
+    description: parsed.data.description || null,
     sort_order: nextSortOrder,
     is_active: parsed.data.is_active,
   });
 
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/word-cards");
   return {};
 }
 
-export async function updateCategoryAction(
+export async function updateWordCardAction(
   id: string,
   values: unknown,
-): Promise<CategoryActionResult> {
-  const parsed = categorySchema.safeParse(values);
-  if (!parsed.success) {
-    return { error: "Geçersiz form verisi." };
-  }
+): Promise<WordCardActionResult> {
+  const parsed = wordCardSchema.safeParse(values);
+  if (!parsed.success) return { error: "Geçersiz form verisi." };
 
   const { supabase, error: authError } = await requireAdmin();
   if (authError || !supabase) return { error: authError! };
 
   const { error } = await supabase
-    .from("categories")
+    .from("word_cards")
     .update({
-      label: parsed.data.label,
+      word: parsed.data.word,
       level_id: parsed.data.level_id,
+      translation: parsed.data.translation || null,
+      example_sentence: parsed.data.example_sentence || null,
+      description: parsed.data.description || null,
       sort_order: parsed.data.sort_order,
       is_active: parsed.data.is_active,
     })
@@ -85,20 +87,20 @@ export async function updateCategoryAction(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/word-cards");
   return {};
 }
 
-export async function deleteCategoryAction(
+export async function deleteWordCardAction(
   id: string,
-): Promise<CategoryActionResult> {
+): Promise<WordCardActionResult> {
   const { supabase, error: authError } = await requireAdmin();
   if (authError || !supabase) return { error: authError! };
 
-  const { error } = await supabase.from("categories").delete().eq("id", id);
+  const { error } = await supabase.from("word_cards").delete().eq("id", id);
 
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/categories");
+  revalidatePath("/admin/word-cards");
   return {};
 }

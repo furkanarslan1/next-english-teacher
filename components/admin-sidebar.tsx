@@ -40,8 +40,8 @@ const navItems = [
     icon: BookOpenIcon,
   },
   {
-    title: "Kartlar",
-    url: "/admin/cards",
+    title: "Kelime Kartları",
+    url: "/admin/word-cards",
     icon: SquareStackIcon,
   },
   {
