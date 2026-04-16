@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   BookOpenIcon,
   ClipboardListIcon,
+  GraduationCapIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   UserIcon,
@@ -32,6 +33,11 @@ const navItems = [
     title: "Kartlar",
     url: "/dashboard/cards",
     icon: BookOpenIcon,
+  },
+  {
+    title: "Dersler",
+    url: "/dashboard/lessons",
+    icon: GraduationCapIcon,
   },
   {
     title: "Testler",
