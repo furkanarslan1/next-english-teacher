@@ -12,7 +12,12 @@ type WordCard = {
 };
 
 function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 function generateQuestions(
@@ -58,22 +63,41 @@ export default async function QuizBatchPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: level }, { data: allWords }] = await Promise.all([
+  // Önce sadece ID'leri çek — ucuz
+  const [{ data: level }, { data: allIdRows }] = await Promise.all([
     supabase.from("levels").select("id, label").eq("id", level_id).single(),
     supabase
       .from("word_cards")
-      .select("id, word, translation")
+      .select("id")
       .eq("level_id", level_id)
       .eq("is_active", true)
       .order("sort_order"),
   ]);
 
-  if (!level || !allWords) notFound();
+  if (!level || !allIdRows) notFound();
 
   const from = (batch - 1) * BATCH_SIZE;
-  const batchWords = allWords.slice(from, from + BATCH_SIZE);
+  const batchIds = allIdRows.slice(from, from + BATCH_SIZE).map((r) => r.id);
 
-  if (batchWords.length === 0) notFound();
+  if (batchIds.length === 0) notFound();
+
+  // Distractor havuzu: batch dışındaki ID'lerden max 30 rastgele al
+  const distractorPool = shuffle(
+    allIdRows.filter((r) => !batchIds.includes(r.id)).map((r) => r.id),
+  ).slice(0, 30);
+
+  // Batch kelimeleri + distractor havuzunu tek sorguda çek
+  const { data: fetchedWords } = await supabase
+    .from("word_cards")
+    .select("id, word, translation")
+    .in("id", [...batchIds, ...distractorPool])
+    .eq("is_active", true);
+
+  if (!fetchedWords) notFound();
+
+  const wordMap = new Map(fetchedWords.map((w) => [w.id, w]));
+  const batchWords = batchIds.map((id) => wordMap.get(id)).filter(Boolean) as WordCard[];
+  const allWords = fetchedWords;
 
   // Batch 1 dışında kilit kontrolü
   if (batch > 1) {
@@ -90,7 +114,7 @@ export default async function QuizBatchPage({
     if (!prevPassed) redirect(`/dashboard/quizzes/${level_id}`);
   }
 
-  const questions = generateQuestions(batchWords, allWords);
+  const questions = shuffle(generateQuestions(batchWords, allWords));
 
   if (questions.length === 0) notFound();
 
