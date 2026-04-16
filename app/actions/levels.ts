@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { levelSchema } from "@/lib/schemas/levels";
 
@@ -56,6 +56,7 @@ export async function createLevelAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/levels");
+  revalidateTag("levels", { expire: 0 });
   return {};
 }
 
@@ -83,6 +84,7 @@ export async function updateLevelAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/levels");
+  revalidateTag("levels", { expire: 0 });
   return {};
 }
 
@@ -97,5 +99,6 @@ export async function deleteLevelAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/levels");
+  revalidateTag("levels", { expire: 0 });
   return {};
 }

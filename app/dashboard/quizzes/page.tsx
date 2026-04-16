@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedActiveLevels, getCachedWordCountsByLevel } from "@/lib/data/levels";
 
 const BATCH_SIZE = 10;
 const PASS_SCORE = 0.7; // %70
@@ -11,30 +12,20 @@ export default async function StudentQuizzesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: levels }, { data: wordCounts }, { data: progress }] =
-    await Promise.all([
-      supabase
-        .from("levels")
-        .select("id, label")
-        .eq("is_active", true)
-        .order("sort_order"),
-      supabase
-        .from("word_cards")
-        .select("level_id")
-        .eq("is_active", true),
-      user
-        ? supabase
-            .from("level_quiz_progress")
-            .select("level_id, batch, score, total")
-            .eq("student_id", user.id)
-        : Promise.resolve({ data: [] }),
-    ]);
+  const [levels, countMap, { data: progress }] = await Promise.all([
+    getCachedActiveLevels(),
+    getCachedWordCountsByLevel(),
+    user
+      ? supabase
+          .from("level_quiz_progress")
+          .select("level_id, batch, score, total")
+          .eq("student_id", user.id)
+      : Promise.resolve({ data: [] as { level_id: string; batch: number; score: number; total: number }[] }),
+  ]);
 
   // Her seviye için toplam kelime ve tamamlanan batch sayısı
-  const levelStats = (levels ?? []).map((level) => {
-    const count = (wordCounts ?? []).filter(
-      (w) => w.level_id === level.id,
-    ).length;
+  const levelStats = levels.map((level) => {
+    const count = countMap.get(level.id) ?? 0;
     const totalBatches = Math.max(1, Math.ceil(count / BATCH_SIZE));
 
     const levelProgress = (progress ?? []).filter(

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { categorySchema } from "@/lib/schemas/categories";
 
@@ -58,6 +58,7 @@ export async function createCategoryAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/categories");
+  revalidateTag("categories", { expire: 0 });
   return {};
 }
 
@@ -86,6 +87,7 @@ export async function updateCategoryAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/categories");
+  revalidateTag("categories", { expire: 0 });
   return {};
 }
 
@@ -100,5 +102,6 @@ export async function deleteCategoryAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/categories");
+  revalidateTag("categories", { expire: 0 });
   return {};
 }

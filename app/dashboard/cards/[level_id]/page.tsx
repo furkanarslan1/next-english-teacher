@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CardsViewer } from "./cards-viewer";
+import { getCachedLevel, getCachedWordCardIds } from "@/lib/data/levels";
+import { getCachedCategories } from "@/lib/data/categories";
 
 const BATCH_SIZE = 20;
 
@@ -23,40 +25,25 @@ export default async function StudentCardsLevelPage({
   const { level_id } = await params;
   const { category_id } = await searchParams;
 
-  const supabase = await createClient();
-
-  // 1. Adım: level, kategoriler ve sadece ID'leri paralel çek
-  const [{ data: level }, { data: categories }, { data: idRows }] =
-    await Promise.all([
-      supabase
-        .from("levels")
-        .select("id, label")
-        .eq("id", level_id)
-        .single(),
-      supabase
-        .from("categories")
-        .select("id, label")
-        .eq("level_id", level_id)
-        .eq("is_active", true)
-        .order("sort_order"),
-      (() => {
-        let q = supabase
-          .from("word_cards")
-          .select("id")
-          .eq("level_id", level_id)
-          .eq("is_active", true);
-        if (category_id) q = q.eq("category_id", category_id);
-        return q;
-      })(),
-    ]);
+  // 1. Adım: static veriler cache'ten — DB sorgusu yok
+  const [level, allCardRows, categories] = await Promise.all([
+    getCachedLevel(level_id),
+    getCachedWordCardIds(level_id),
+    getCachedCategories(level_id),
+  ]);
 
   if (!level) notFound();
 
-  // 2. Adım: ID'leri shuffle et, ilk batch'i çek
-  const allIds = shuffled(idRows?.map((r) => r.id) ?? []);
+  // 2. Adım: kategori filtresi cache'te (client-side), DB'ye gitme
+  const filteredIds = category_id
+    ? allCardRows.filter((r) => r.category_id === category_id).map((r) => r.id)
+    : allCardRows.map((r) => r.id);
+
+  const allIds = shuffled(filteredIds);
   const firstBatchIds = allIds.slice(0, BATCH_SIZE);
   const remainingIds = allIds.slice(BATCH_SIZE);
 
+  // 3. Adım: sadece ilk batch'in tam verisini çek (20 kart, gerçek DB sorgusu)
   let firstBatch: {
     id: string;
     word: string;
@@ -66,6 +53,7 @@ export default async function StudentCardsLevelPage({
   }[] = [];
 
   if (firstBatchIds.length > 0) {
+    const supabase = await createClient();
     const { data } = await supabase
       .from("word_cards")
       .select("id, word, translation, example_sentence, description")
@@ -84,7 +72,7 @@ export default async function StudentCardsLevelPage({
       levelLabel={level.label}
       initialCards={firstBatch}
       remainingIds={remainingIds}
-      categories={categories ?? []}
+      categories={categories}
       activeCategoryId={category_id ?? null}
     />
   );

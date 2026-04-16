@@ -1,15 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { QuizSession } from "./quiz-session";
+import { getCachedLevel, getCachedWordCardIds } from "@/lib/data/levels";
 
 const BATCH_SIZE = 10;
-const TIME_PER_QUESTION = 15; // saniye
+const TIME_PER_QUESTION = 15;
 
-type WordCard = {
-  id: string;
-  word: string;
-  translation: string | null;
-};
+type WordCard = { id: string; word: string; translation: string | null };
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -20,12 +17,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function generateQuestions(
-  batchWords: WordCard[],
-  allWords: WordCard[],
-) {
+function generateQuestions(batchWords: WordCard[], allWords: WordCard[]) {
   return batchWords
-    .filter((w) => w.translation) // çevirisi olmayanları atla
+    .filter((w) => w.translation)
     .map((word) => {
       const distractors = shuffle(
         allWords.filter((w) => w.id !== word.id && w.translation),
@@ -38,11 +32,7 @@ function generateQuestions(
         ...distractors,
       ]);
 
-      return {
-        word_card_id: word.id,
-        question: word.word,
-        options,
-      };
+      return { word_card_id: word.id, question: word.word, options };
     });
 }
 
@@ -57,49 +47,23 @@ export default async function QuizBatchPage({
   if (isNaN(batch) || batch < 1) notFound();
 
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Önce sadece ID'leri çek — ucuz
-  const [{ data: level }, { data: allIdRows }] = await Promise.all([
-    supabase.from("levels").select("id, label").eq("id", level_id).single(),
-    supabase
-      .from("word_cards")
-      .select("id")
-      .eq("level_id", level_id)
-      .eq("is_active", true)
-      .order("sort_order"),
+  // Static veriler cache'ten — DB sorgusu yok
+  const [level, allIdRows] = await Promise.all([
+    getCachedLevel(level_id),
+    getCachedWordCardIds(level_id),
   ]);
 
-  if (!level || !allIdRows) notFound();
+  if (!level) notFound();
 
   const from = (batch - 1) * BATCH_SIZE;
   const batchIds = allIdRows.slice(from, from + BATCH_SIZE).map((r) => r.id);
 
   if (batchIds.length === 0) notFound();
 
-  // Distractor havuzu: batch dışındaki ID'lerden max 30 rastgele al
-  const distractorPool = shuffle(
-    allIdRows.filter((r) => !batchIds.includes(r.id)).map((r) => r.id),
-  ).slice(0, 30);
-
-  // Batch kelimeleri + distractor havuzunu tek sorguda çek
-  const { data: fetchedWords } = await supabase
-    .from("word_cards")
-    .select("id, word, translation")
-    .in("id", [...batchIds, ...distractorPool])
-    .eq("is_active", true);
-
-  if (!fetchedWords) notFound();
-
-  const wordMap = new Map(fetchedWords.map((w) => [w.id, w]));
-  const batchWords = batchIds.map((id) => wordMap.get(id)).filter(Boolean) as WordCard[];
-  const allWords = fetchedWords;
-
-  // Batch 1 dışında kilit kontrolü
+  // Kilit kontrolü — kullanıcıya özgü, DB'den taze çek
   if (batch > 1) {
     const { data: prevProgress } = await supabase
       .from("level_quiz_progress")
@@ -114,7 +78,26 @@ export default async function QuizBatchPage({
     if (!prevPassed) redirect(`/dashboard/quizzes/${level_id}`);
   }
 
-  const questions = shuffle(generateQuestions(batchWords, allWords));
+  // Distractor havuzu + batch kelimelerini tek sorguda çek
+  const batchIdSet = new Set(batchIds);
+  const distractorPool = shuffle(
+    allIdRows.filter((r) => !batchIdSet.has(r.id)).map((r) => r.id),
+  ).slice(0, 30);
+
+  const { data: fetchedWords } = await supabase
+    .from("word_cards")
+    .select("id, word, translation")
+    .in("id", [...batchIds, ...distractorPool])
+    .eq("is_active", true);
+
+  if (!fetchedWords) notFound();
+
+  const wordMap = new Map(fetchedWords.map((w) => [w.id, w]));
+  const batchWords = batchIds
+    .map((id) => wordMap.get(id))
+    .filter(Boolean) as WordCard[];
+
+  const questions = shuffle(generateQuestions(batchWords, fetchedWords));
 
   if (questions.length === 0) notFound();
 

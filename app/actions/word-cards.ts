@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { wordCardSchema } from "@/lib/schemas/word-cards";
 
@@ -60,6 +60,7 @@ export async function createWordCardAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/word-cards");
+  revalidateTag("word-cards", { expire: 0 });
   return {};
 }
 
@@ -90,6 +91,7 @@ export async function updateWordCardAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/word-cards");
+  revalidateTag("word-cards", { expire: 0 });
   return {};
 }
 
@@ -104,5 +106,6 @@ export async function deleteWordCardAction(
   if (error) return { error: error.message };
 
   revalidatePath("/admin/word-cards");
+  revalidateTag("word-cards", { expire: 0 });
   return {};
 }

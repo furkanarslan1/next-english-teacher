@@ -1,25 +1,11 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getCachedActiveLevels, getCachedWordCountsByLevel } from "@/lib/data/levels";
 
 export default async function StudentCardsPage() {
-  const supabase = await createClient();
-
-  const [{ data: levels }, { data: counts }] = await Promise.all([
-    supabase
-      .from("levels")
-      .select("id, label")
-      .eq("is_active", true)
-      .order("sort_order"),
-    supabase
-      .from("word_cards")
-      .select("level_id")
-      .eq("is_active", true),
+  const [levels, countMap] = await Promise.all([
+    getCachedActiveLevels(),
+    getCachedWordCountsByLevel(),
   ]);
-
-  const countMap = new Map<string, number>();
-  for (const row of counts ?? []) {
-    countMap.set(row.level_id, (countMap.get(row.level_id) ?? 0) + 1);
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +17,7 @@ export default async function StudentCardsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(levels ?? []).map((level) => {
+        {levels.map((level) => {
           const count = countMap.get(level.id) ?? 0;
           return (
             <Link
