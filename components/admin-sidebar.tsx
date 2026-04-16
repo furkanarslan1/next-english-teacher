@@ -8,6 +8,7 @@ import {
   LogOutIcon,
   SquareStackIcon,
   ClipboardListIcon,
+  GraduationCapIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -49,7 +50,11 @@ const navItems = [
     url: "/admin/quizzes",
     icon: ClipboardListIcon,
   },
-
+  {
+    title: "Dersler",
+    url: "/admin/lessons",
+    icon: GraduationCapIcon,
+  },
 ];
 
 export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
